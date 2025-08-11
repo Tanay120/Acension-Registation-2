@@ -1,56 +1,20 @@
 // src/pages/Teams.tsx
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Helmet } from "react-helmet-async";
-import { collection, getDocs, orderBy, query } from "firebase/firestore";
-
-import { db } from "@/firebase";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useRegistrationStore } from "@/store/registrations";
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 
-// Define the structure of a team document from Firestore
-interface Team {
-  id: string;
-  teamName: string;
-  captainName: string;
-  registeredAt: {
-    seconds: number;
-    nanoseconds: number;
-  };
-}
-
 const Teams = () => {
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { teams, isLoading, fetchTeams, count, capacity } = useRegistrationStore();
 
   useEffect(() => {
-    const fetchTeams = async () => {
-      try {
-        // Create a query to get all documents from the 'registrations' collection,
-        // ordered by when they were registered.
-        const q = query(collection(db, "registrations"), orderBy("registeredAt", "asc"));
-        const querySnapshot = await getDocs(q);
-
-        const teamsList = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        } as Team));
-        
-        setTeams(teamsList);
-      } catch (error) {
-        console.error("Error fetching teams:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchTeams();
-  }, []);
-
-  if (isLoading) {
-    return <p className="text-center py-10">Loading registered teams...</p>;
-  }
+    if (teams.length === 0) {
+      fetchTeams();
+    }
+  }, [teams.length, fetchTeams]);
 
   return (
     <main className="container py-10 md:py-14">
@@ -59,43 +23,51 @@ const Teams = () => {
         <meta name="description" content="View all the teams registered for the Ascension Valorant Tournament." />
       </Helmet>
 
-      <div className="flex justify-between items-center mb-8">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div>
           <h1 className="text-3xl md:text-4xl font-display font-semibold tracking-wide">Registered Teams</h1>
-          <p className="text-muted-foreground mt-2">{teams.length} of 16 teams have registered.</p>
+          <p className="text-muted-foreground mt-2">{count()} of {capacity} teams have registered.</p>
         </div>
-        <Button asChild>
+        <div className="flex gap-4">
+          <Button asChild>
             <Link to="/register">Register a Team</Link>
-        </Button>
+          </Button>
+          {/* 1. Added Back to Home button */}
+          <Button asChild variant="outline">
+            <Link to="/">Back to Home</Link>
+          </Button>
+        </div>
       </div>
 
       <Card>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-16">Slot</TableHead>
-                <TableHead>Team Name</TableHead>
-                <TableHead>Captain</TableHead>
-                <TableHead className="text-right">Registered On</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {teams.map((team, index) => (
-                <TableRow key={team.id}>
-                  <TableCell className="font-medium">{index + 1}</TableCell>
-                  <TableCell className="font-semibold">{team.teamName}</TableCell>
-                  <TableCell>{team.captainName}</TableCell>
-                  <TableCell className="text-right">
-                    {new Date(team.registeredAt.seconds * 1000).toLocaleDateString()}
-                  </TableCell>
+          {isLoading ? (
+            <p className="p-6 text-center text-muted-foreground">Loading registered teams...</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-16">Slot</TableHead>
+                  <TableHead>Team Name</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-           {teams.length === 0 && (
-             <p className="p-6 text-center text-muted-foreground">No teams have registered yet.</p>
-           )}
+              </TableHeader>
+              <TableBody>
+                {teams.map((team, index) => (
+                  <TableRow key={team.id}>
+                    <TableCell className="font-medium">{index + 1}</TableCell>
+                    <TableCell className="font-semibold">{team.teamName}</TableCell>
+                  </TableRow>
+                ))}
+                {teams.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={2} className="p-6 text-center text-muted-foreground">
+                      No teams have registered yet.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </main>

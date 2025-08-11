@@ -2,13 +2,7 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 
-// TODO: Replace with your app's Firebase configuration
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
-
-// Your web app's Firebase configuration
+// TODO: Replace with your app's Firebase configuration from the Firebase console
 const firebaseConfig = {
   apiKey: "AIzaSyDsuYhBN_Qq_IUSndwBA5QUoqIK4OFws0w",
   authDomain: "ascension-tournament.firebaseapp.com",
@@ -21,8 +15,5 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-
-// Initialize and export Firestore
+// Initialize and export Firestore for use in other files
 export const db = getFirestore(app);

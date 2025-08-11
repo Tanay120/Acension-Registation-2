@@ -3,26 +3,28 @@ import { create } from 'zustand';
 import { collection, getDocs, orderBy, query } from 'firebase/firestore';
 import { db } from '@/firebase';
 
-// Define the shape of a team
+// Define the shape of a team object
 interface Team {
   id: string;
   teamName: string;
 }
 
-// Define the state and actions for your store
+// Define the shape of the store's state and actions
 interface RegistrationState {
   teams: Team[];
   capacity: number;
   isLoading: boolean;
   fetchTeams: () => Promise<void>;
+  addTeam: (newTeam: Team) => void;
   count: () => number;
   isClosed: () => boolean;
 }
 
-// Create the store
+// Create the Zustand store
 export const useRegistrationStore = create<RegistrationState>((set, get) => ({
+  // Initial state
   teams: [],
-  capacity: 16, // The tournament capacity
+  capacity: 16,
   isLoading: true,
 
   // Action to fetch all teams from Firestore
@@ -35,16 +37,27 @@ export const useRegistrationStore = create<RegistrationState>((set, get) => ({
         id: doc.id,
         teamName: doc.data().teamName,
       })) as Team[];
-      set({ teams: teamsList, isLoading: false });
+      set({ teams: teamsList });
     } catch (error) {
       console.error("Error fetching teams:", error);
+    } finally {
+      // Always set loading to false after the fetch attempt is complete
       set({ isLoading: false });
     }
   },
 
-  // Getter for the current count of registered teams
+  // Action to add a new team to the local state optimistically
+  addTeam: (newTeam: Team) => {
+    set((state) => ({
+      teams: [...state.teams, newTeam],
+      // This is the fix: ensure isLoading is false after adding a team
+      isLoading: false,
+    }));
+  },
+
+  // Getter to calculate the current number of registered teams
   count: () => get().teams.length,
 
-  // Getter to check if registration is closed
+  // Getter to check if the registration capacity has been reached
   isClosed: () => get().teams.length >= get().capacity,
 }));
