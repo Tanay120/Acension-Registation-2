@@ -1,73 +1,50 @@
-# Welcome to your Lovable project
+# Ascension Valorant Tournament Website
 
-## Project info
+This is the official registration website for the Ascension Valorant Tournament, a 16-team competitive event hosted by IETE TSEC.
 
-**URL**: https://lovable.dev/projects/6ccd74f3-f25d-43cb-9ec5-12dcc59856ad
+## Built With
 
-## How can I edit this code?
+This project is built with a modern web development stack:
 
-There are several ways of editing your application.
+-   **Vite**: For a fast and efficient development experience.
+-   **React**: For building the user interface.
+-   **TypeScript**: For type safety and improved code quality.
+-   **Tailwind CSS**: For utility-first styling.
+-   **shadcn/ui**: For beautifully designed and accessible UI components.
+-   **Firebase**: For the backend, including data storage and authentication.
 
-**Use Lovable**
+## Getting Started: Local Development
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/6ccd74f3-f25d-43cb-9ec5-12dcc59856ad) and start prompting.
+To run this project on your local machine, you'll need Node.js and npm installed.
 
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
+**1. Clone the repository:**
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
 git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
 ```
 
-**Edit a file directly in GitHub**
+**2. Navigate to the project directory:**
+```sh
+cd <YOUR_PROJECT_NAME>
+```
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+**3. Install dependencies:**
+```sh
+npm install
+```
 
-**Use GitHub Codespaces**
+**4. Start the development server:**
+This command starts a local server with auto-reloading.
+```sh
+npm run dev
+```
+The application will be available at `http://localhost:8080`.
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Deployment
 
-## What technologies are used for this project?
+This Vite project can be easily deployed to any modern hosting platform that supports Node.js. Some popular options include:
 
-This project is built with:
+-   Vercel
+-   Netlify
+-   Firebase Hosting
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/6ccd74f3-f25d-43cb-9ec5-12dcc59856ad) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+These platforms typically offer a seamless deployment experience by connecting directly to your GitHub repository.
