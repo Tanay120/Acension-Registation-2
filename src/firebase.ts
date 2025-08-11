@@ -2,18 +2,18 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 
-// TODO: Replace with your app's Firebase configuration from the Firebase console
+// Use environment variables for configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyDsuYhBN_Qq_IUSndwBA5QUoqIK4OFws0w",
-  authDomain: "ascension-tournament.firebaseapp.com",
-  projectId: "ascension-tournament",
-  storageBucket: "ascension-tournament.firebasestorage.app",
-  messagingSenderId: "1018752087165",
-  appId: "1:1018752087165:web:d0e341c70e696f0d6b6d14"
+  apiKey: import.meta.env.VITE_API_KEY,
+  authDomain: import.meta.env.VITE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_APP_ID
 };
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Initialize and export Firestore for use in other files
+// Initialize and export Firestore
 export const db = getFirestore(app);
