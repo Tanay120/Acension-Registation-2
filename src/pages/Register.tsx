@@ -1,40 +1,44 @@
 // src/pages/Register.tsx
+import { useState } from "react"; // <-- Add useState
 import { useForm, SubmitHandler } from "react-hook-form";
 import { useNavigate, Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
-import { collection, addDoc, Timestamp, query, where, getDocs } from "firebase/firestore";
+import { collection, addDoc, Timestamp, query, where, getDocs, doc, updateDoc } from "firebase/firestore"; // <-- Add doc and updateDoc
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage"; // <-- Add Firebase Storage imports
 
-import { db } from "@/firebase";
+import { db, storage } from "@/firebase"; // <-- Import storage
 import { useRegistrationStore } from "@/store/registrations";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
+import { UploadCloud } from "lucide-react"; // <-- Optional: an icon for the button
 
 // --- Type Definitions ---
 type Player = {
   name: string;
-  // valorantId: string; <-- REMOVED
 };
 
 type FormValues = {
   teamName: string;
   captainName: string;
-  // captainValorantId: string; <-- REMOVED
   captainEmail: string;
   captainPhone: string;
   players: Player[];
 };
 
 // --- Constants ---
-const defaultPlayers = Array.from({ length: 4 }, () => ({ name: "" })); // <-- REMOVED valorantId
+const defaultPlayers = Array.from({ length: 4 }, () => ({ name: "" }));
 
 // --- Component ---
 const Register = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { isClosed, count, capacity, addTeam } = useRegistrationStore();
+  
+  // --- NEW: State for the screenshot file ---
+  const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
 
   const {
     register,
@@ -48,14 +52,28 @@ const Register = () => {
   });
 
   const spotsFilledPercent = Math.min(100, Math.round((count() / capacity) * 100));
+  
+  // --- NEW: Handler for file input change ---
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setScreenshotFile(e.target.files[0]);
+    }
+  };
 
   const onSubmit: SubmitHandler<FormValues> = async (values) => {
     if (isClosed()) {
       toast({ title: "Registration Closed", description: "All team slots have been filled." });
       return;
     }
+    
+    // --- NEW: Check if a screenshot has been selected ---
+    if (!screenshotFile) {
+        toast({ title: "Screenshot Required", description: "Please upload your payment screenshot.", variant: "destructive" });
+        return;
+    }
 
     try {
+      // Check for duplicate team name
       const q = query(collection(db, "registrations"), where("teamName", "==", values.teamName.trim()));
       const querySnapshot = await getDocs(q);
       if (!querySnapshot.empty) {
@@ -63,22 +81,34 @@ const Register = () => {
         return;
       }
 
-      // Add the new team to Firestore
+      // 1. Add the team details to Firestore first (without screenshot URL)
       const docRef = await addDoc(collection(db, "registrations"), {
         teamName: values.teamName.trim(),
         captainName: values.captainName.trim(),
-        // captainValorantId: values.captainValorantId.trim(), <-- REMOVED
         captainEmail: values.captainEmail.trim(),
         captainPhone: values.captainPhone.trim(),
-        players: values.players.map((p) => ({ name: p.name.trim() })), // <-- REMOVED valorantId
+        players: values.players.map((p) => ({ name: p.name.trim() })),
         registeredAt: Timestamp.now(),
+        paymentStatus: "pending_verification",
+      });
+
+      // 2. Upload the screenshot to Firebase Storage
+      const filePath = `screenshots/${docRef.id}-${screenshotFile.name}`;
+      const storageRef = ref(storage, filePath);
+      const uploadTask = await uploadBytes(storageRef, screenshotFile);
+      const downloadURL = await getDownloadURL(uploadTask.ref);
+
+      // 3. Update the Firestore document with the screenshot URL
+      await updateDoc(doc(db, "registrations", docRef.id), {
+        screenshotURL: downloadURL,
       });
 
       addTeam({ id: docRef.id, teamName: values.teamName.trim() });
 
-      toast({ title: "Registration Successful!", description: `Welcome, ${values.teamName}!` });
+      toast({ title: "Registration Successful!", description: `Welcome, ${values.teamName}! We will verify your payment.` });
       reset();
       navigate(`/success?team=${encodeURIComponent(values.teamName.trim())}`);
+      
     } catch (e: any) {
       toast({
         title: "Unable to register",
@@ -96,16 +126,7 @@ const Register = () => {
         <link rel="canonical" href="/register" />
       </Helmet>
 
-      <header className="mb-8">
-        <h1 className="text-3xl md:text-4xl font-display font-semibold tracking-wide">Team Registration</h1>
-        <p className="text-muted-foreground mt-2">5 players per team. Slots: {count()}/{capacity} filled.</p>
-        <div className="mt-4 h-2 w-full bg-muted rounded">
-          <div className="h-full rounded bg-primary transition-all duration-500" style={{ width: `${spotsFilledPercent}%` }} />
-        </div>
-        {isClosed() && (
-          <p className="mt-3 text-sm text-destructive">Registration is closed. All team slots are filled.</p>
-        )}
-      </header>
+      {/* ... (Header section is the same) ... */}
 
       <Card className="max-w-3xl mx-auto">
         <CardHeader>
@@ -114,61 +135,31 @@ const Register = () => {
         </CardHeader>
         <CardContent>
           <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
-            <section>
-              <Label htmlFor="teamName">Team Name</Label>
-              <Input id="teamName" placeholder="e.g., Phoenix Five" {...register("teamName", { required: "Team name is required." })} />
-              {errors.teamName && <p className="text-xs text-destructive mt-1">{errors.teamName.message}</p>}
-            </section>
-
-            <section className="grid md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="captainName">Captain’s Name</Label>
-                <Input placeholder="Your name" {...register("captainName", { required: "Captain's name is required." })} />
-                {errors.captainName && <p className="text-xs text-destructive mt-1">{errors.captainName.message}</p>}
-              </div>
-              
-              {/* --- SECTION REMOVED ---
-              <div className="space-y-2">
-                <Label htmlFor="captainValorantId">Captain’s Valorant ID</Label>
-                <Input placeholder="e.g., Captain#NA1" {...register("captainValorantId", { required: "Captain's Valorant ID is required." })} />
-                {errors.captainValorantId && <p className="text-xs text-destructive mt-1">{errors.captainValorantId.message}</p>}
-              </div>
-              */}
-              
-              <div className="space-y-2">
-                <Label htmlFor="captainEmail">Captain’s Email</Label>
-                <Input type="email" placeholder="you@example.com" {...register("captainEmail", { required: "A valid email is required.", pattern: { value: /^\S+@\S+$/i, message: "Invalid email address." } })} />
-                {errors.captainEmail && <p className="text-xs text-destructive mt-1">{errors.captainEmail.message}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="captainPhone">Captain’s Phone</Label>
-                <Input type="tel" placeholder="10-digit number" {...register("captainPhone", { required: "Phone number is required.", minLength: { value: 7, message: "Must be a valid phone number." } })} />
-                {errors.captainPhone && <p className="text-xs text-destructive mt-1">{errors.captainPhone.message}</p>}
-              </div>
-            </section>
             
-            <section>
-              <h2 className="font-display text-xl mb-3">Players 2–5</h2>
-              <div className="space-y-4"> {/* Changed gap to space-y for better single-column layout */}
-                {defaultPlayers.map((_, i) => (
-                  <div key={i}>
-                    <Label>Player {i + 2} Name</Label>
-                    <Input placeholder={`Player ${i + 2} name`} {...register(`players.${i}.name` as const, { required: "Player name is required." })} />
-                    {errors.players?.[i]?.name && <p className="text-xs text-destructive mt-1">{errors.players[i]?.name?.message}</p>}
+            {/* ... (Team Name, Captain, and Player sections are the same) ... */}
 
-                    {/* --- FIELD REMOVED ---
-                    <Label>Player {i + 2} Valorant ID</Label>
-                    <Input placeholder="e.g., Duelist#1234" {...register(`players.${i}.valorantId` as const, { required: "Valorant ID is required." })} />
-                    {errors.players?.[i]?.valorantId && <p className="text-xs text-destructive mt-1">{errors.players[i]?.valorantId?.message}</p>}
-                    */}
+            {/* --- NEW: Payment and Upload Section --- */}
+            <section className="space-y-4 pt-4 border-t">
+               <h2 className="font-display text-xl mb-3">Payment</h2>
+               <div className="grid md:grid-cols-2 gap-8 items-center bg-muted/40 p-4 rounded-lg">
+                  <div className="text-center">
+                    <Label className="font-semibold mb-2 block">Scan to Pay</Label>
+                    {/* Make sure 'upi-qr-code.png' is in your /public folder */}
+                    <img src="/upi-qr-code.png" alt="UPI QR Code for payment" className="rounded-lg mx-auto border" />
+                    <p className="text-sm text-muted-foreground mt-2">Pay the entry fee using any UPI app.</p>
                   </div>
-                ))}
-              </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="screenshot" className="font-semibold">Upload Payment Screenshot</Label>
+                    <Input id="screenshot" type="file" accept="image/*" required onChange={handleFileChange} disabled={isSubmitting} />
+                    {screenshotFile && <p className="text-sm text-muted-foreground">Selected: {screenshotFile.name}</p>}
+                  </div>
+               </div>
             </section>
 
             <div className="pt-2 flex flex-col sm:flex-row gap-4">
               <Button size="xl" type="submit" disabled={isSubmitting || isClosed()}>
-                {isClosed() ? "Registration Closed" : isSubmitting ? "Submitting..." : "Submit Registration"}
+                {isSubmitting ? "Submitting..." : <><UploadCloud className="mr-2 h-5 w-5" /> Submit Registration</>}
               </Button>
               <Button size="xl" variant="outline" asChild>
                 <Link to="/">Back to Home</Link>
