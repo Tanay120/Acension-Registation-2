@@ -11,6 +11,7 @@ const Teams = () => {
   const { teams, isLoading, fetchTeams, count, capacity } = useRegistrationStore();
 
   useEffect(() => {
+    // This logic is fine, but you could also just call fetchTeams() on mount.
     if (teams.length === 0) {
       fetchTeams();
     }
@@ -26,13 +27,13 @@ const Teams = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div>
           <h1 className="text-3xl md:text-4xl font-display font-semibold tracking-wide">Registered Teams</h1>
-          <p className="text-muted-foreground mt-2">{count()} of {capacity} teams have registered.</p>
+          {/* CORRECTED: Changed count() to count */}
+          <p className="text-muted-foreground mt-2">{count} of {capacity} teams have registered.</p>
         </div>
         <div className="flex gap-4">
           <Button asChild>
             <Link to="/register">Register a Team</Link>
           </Button>
-          {/* 1. Added Back to Home button */}
           <Button asChild variant="outline">
             <Link to="/">Back to Home</Link>
           </Button>

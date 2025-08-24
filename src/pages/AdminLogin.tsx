@@ -2,7 +2,7 @@
 import { useForm, SubmitHandler } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
-import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
+import { supabase } from "@/supabase";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +10,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 
-// Define the shape of our form data
 type LoginFormValues = {
   email: string;
   password: string;
@@ -19,7 +18,6 @@ type LoginFormValues = {
 const AdminLogin = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const auth = getAuth(); // Get the Firebase Auth instance
 
   const {
     register,
@@ -29,11 +27,15 @@ const AdminLogin = () => {
 
   const onSubmit: SubmitHandler<LoginFormValues> = async (data) => {
     try {
-      // Use the Firebase function to sign in
-      await signInWithEmailAndPassword(auth, data.email, data.password);
+      const { error } = await supabase.auth.signInWithPassword({
+        email: data.email,
+        password: data.password,
+      });
+
+      if (error) throw error;
       
       toast({ title: "Login Successful", description: "Welcome back, admin!" });
-      navigate("/admin/dashboard"); // Redirect to the admin dashboard after login
+      navigate("/admin/dashboard");
     } catch (error: any) {
       console.error("Login failed:", error);
       toast({
@@ -44,6 +46,7 @@ const AdminLogin = () => {
     }
   };
 
+  // CORRECTED: Restored the JSX for the login form
   return (
     <main className="container flex items-center justify-center min-h-screen">
       <Helmet>

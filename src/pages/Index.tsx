@@ -1,4 +1,3 @@
-// src/pages/Index.tsx
 import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
@@ -12,10 +11,8 @@ import { CountdownTimer } from "@/components/CountdownTimer";
 const registrationDeadline = "2025-09-01T18:00:00+05:30";
 
 const Index = () => {
-  // Use the store's state and actions via the hook
   const { teams, capacity, isClosed, isLoading, fetchTeams, count } = useRegistrationStore();
 
-  // Fetch team data when the component first loads
   useEffect(() => {
     fetchTeams();
   }, [fetchTeams]);
@@ -36,7 +33,7 @@ const Index = () => {
           endDate: '2025-09-07T20:00:00+05:30',
           location: { '@type': 'VirtualLocation', url: '/' },
           maximumAttendeeCapacity: capacity,
-          remainingAttendeeCapacity: Math.max(0, capacity - count()),
+          remainingAttendeeCapacity: Math.max(0, capacity - count),
           description: 'Register your 5-player Valorant team for Ascension by IETE TSEC. 16 slots only.'
         })}</script>
       </Helmet>
@@ -53,7 +50,7 @@ const Index = () => {
 
               <div className="mt-8 flex flex-col sm:flex-row items-start sm:items-center gap-4">
                 <Button asChild variant="hero" size="xl" className="hover-scale">
-                  <Link to="/register">{isClosed() ? "Registration Closed" : "Register Now"}</Link>
+                  <Link to="/register">{isClosed ? "Registration Closed" : "Register Now"}</Link>
                 </Button>
                 <Button asChild variant="secondary" size="xl" className="hover-scale">
                   <Link to="/teams">View Registered Teams</Link>
@@ -61,7 +58,7 @@ const Index = () => {
               </div>
 
               <div className="mt-2 text-sm text-muted-foreground">
-                Slots filled: <span className="text-foreground font-semibold">{count()}/{capacity}</span>
+                Slots filled: <span className="text-foreground font-semibold">{count}/{capacity}</span>
               </div>
 
               <div className="mt-8">
@@ -114,7 +111,7 @@ const Index = () => {
       <section className="container pb-20">
         <Card>
           <CardHeader>
-            <CardTitle className="font-display">Registered Teams ({count()}/{capacity})</CardTitle>
+            <CardTitle className="font-display">Registered Teams ({count}/{capacity})</CardTitle>
             <CardDescription>Public list of teams registered so far.</CardDescription>
           </CardHeader>
           <CardContent>

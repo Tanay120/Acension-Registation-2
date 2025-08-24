@@ -1,21 +1,17 @@
 // src/pages/Register.tsx
-import { useState } from "react"; // <-- Add useState
+import { useState } from "react";
 import { useForm, SubmitHandler } from "react-hook-form";
 import { useNavigate, Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
-import { collection, addDoc, Timestamp, query, where, getDocs, doc, updateDoc } from "firebase/firestore"; // <-- Add doc and updateDoc
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage"; // <-- Add Firebase Storage imports
-
-import { db, storage } from "@/firebase"; // <-- Import storage
+import { supabase } from "@/supabase";
 import { useRegistrationStore } from "@/store/registrations";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
-import { UploadCloud } from "lucide-react"; // <-- Optional: an icon for the button
+import { UploadCloud } from "lucide-react";
 
-// --- Type Definitions ---
 type Player = {
   name: string;
 };
@@ -28,16 +24,12 @@ type FormValues = {
   players: Player[];
 };
 
-// --- Constants ---
 const defaultPlayers = Array.from({ length: 4 }, () => ({ name: "" }));
 
-// --- Component ---
 const Register = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { isClosed, count, capacity, addTeam } = useRegistrationStore();
-  
-  // --- NEW: State for the screenshot file ---
   const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
 
   const {
@@ -51,9 +43,8 @@ const Register = () => {
     },
   });
 
-  const spotsFilledPercent = Math.min(100, Math.round((count() / capacity) * 100));
+  const spotsFilledPercent = Math.min(100, Math.round((count / capacity) * 100)); // CORRECTED
   
-  // --- NEW: Handler for file input change ---
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setScreenshotFile(e.target.files[0]);
@@ -61,51 +52,61 @@ const Register = () => {
   };
 
   const onSubmit: SubmitHandler<FormValues> = async (values) => {
-    if (isClosed()) {
+    if (isClosed) { // CORRECTED
       toast({ title: "Registration Closed", description: "All team slots have been filled." });
       return;
     }
     
-    // --- NEW: Check if a screenshot has been selected ---
     if (!screenshotFile) {
         toast({ title: "Screenshot Required", description: "Please upload your payment screenshot.", variant: "destructive" });
         return;
     }
 
     try {
-      // Check for duplicate team name
-      const q = query(collection(db, "registrations"), where("teamName", "==", values.teamName.trim()));
-      const querySnapshot = await getDocs(q);
-      if (!querySnapshot.empty) {
+      const { data: existingTeams, error: selectError } = await supabase
+        .from('registrations')
+        .select('teamName')
+        .eq('teamName', values.teamName.trim());
+
+      if (selectError) throw selectError;
+      if (existingTeams && existingTeams.length > 0) {
         toast({ title: "Team Name Taken", description: "This team name is already registered." });
         return;
       }
 
-      // 1. Add the team details to Firestore first (without screenshot URL)
-      const docRef = await addDoc(collection(db, "registrations"), {
-        teamName: values.teamName.trim(),
-        captainName: values.captainName.trim(),
-        captainEmail: values.captainEmail.trim(),
-        captainPhone: values.captainPhone.trim(),
-        players: values.players.map((p) => ({ name: p.name.trim() })),
-        registeredAt: Timestamp.now(),
-        paymentStatus: "pending_verification",
-      });
+      const filePath = `${Date.now()}-${screenshotFile.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from('screenshots')
+        .upload(filePath, screenshotFile);
 
-      // 2. Upload the screenshot to Firebase Storage
-      const filePath = `screenshots/${docRef.id}-${screenshotFile.name}`;
-      const storageRef = ref(storage, filePath);
-      const uploadTask = await uploadBytes(storageRef, screenshotFile);
-      const downloadURL = await getDownloadURL(uploadTask.ref);
+      if (uploadError) throw uploadError;
 
-      // 3. Update the Firestore document with the screenshot URL
-      await updateDoc(doc(db, "registrations", docRef.id), {
-        screenshotURL: downloadURL,
-      });
+      const { data: urlData } = supabase.storage
+        .from('screenshots')
+        .getPublicUrl(filePath);
+      
+      const screenshotURL = urlData.publicUrl;
 
-      addTeam({ id: docRef.id, teamName: values.teamName.trim() });
+      const { data: newTeamData, error: insertError } = await supabase
+        .from('registrations')
+        .insert({
+          teamName: values.teamName.trim(),
+          captainName: values.captainName.trim(),
+          captainEmail: values.captainEmail.trim(),
+          captainPhone: values.captainPhone.trim(),
+          players: values.players.map((p) => ({ name: p.name.trim() })),
+          screenshotURL: screenshotURL,
+        })
+        .select('id, teamName')
+        .single();
 
-      toast({ title: "Registration Successful!", description: `Welcome, ${values.teamName}! We will verify your payment.` });
+      if (insertError) throw insertError;
+
+      if (newTeamData) {
+        addTeam({ id: newTeamData.id, teamName: newTeamData.teamName });
+      }
+
+      toast({ title: "Registration Successful!", description: `Welcome, ${values.teamName}!` });
       reset();
       navigate(`/success?team=${encodeURIComponent(values.teamName.trim())}`);
       
@@ -126,7 +127,16 @@ const Register = () => {
         <link rel="canonical" href="/register" />
       </Helmet>
 
-      {/* ... (Header section is the same) ... */}
+      <header className="mb-8">
+        <h1 className="text-3xl md:text-4xl font-display font-semibold tracking-wide">Team Registration</h1>
+        <p className="text-muted-foreground mt-2">5 players per team. Slots: {count}/{capacity} filled.</p> {/* CORRECTED */}
+        <div className="mt-4 h-2 w-full bg-muted rounded">
+          <div className="h-full rounded bg-primary transition-all duration-500" style={{ width: `${spotsFilledPercent}%` }} />
+        </div>
+        {isClosed && ( // CORRECTED
+          <p className="mt-3 text-sm text-destructive">Registration is closed. All team slots are filled.</p>
+        )}
+      </header>
 
       <Card className="max-w-3xl mx-auto">
         <CardHeader>
@@ -135,16 +145,48 @@ const Register = () => {
         </CardHeader>
         <CardContent>
           <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
-            
-            {/* ... (Team Name, Captain, and Player sections are the same) ... */}
+            <section>
+              <Label htmlFor="teamName">Team Name</Label>
+              <Input id="teamName" placeholder="e.g., Phoenix Five" {...register("teamName", { required: "Team name is required." })} />
+              {errors.teamName && <p className="text-xs text-destructive mt-1">{errors.teamName.message}</p>}
+            </section>
 
-            {/* --- NEW: Payment and Upload Section --- */}
+            <section className="grid md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="captainName">Captain’s Name</Label>
+                <Input placeholder="Your name" {...register("captainName", { required: "Captain's name is required." })} />
+                {errors.captainName && <p className="text-xs text-destructive mt-1">{errors.captainName.message}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="captainEmail">Captain’s Email</Label>
+                <Input type="email" placeholder="you@example.com" {...register("captainEmail", { required: "A valid email is required.", pattern: { value: /^\S+@\S+$/i, message: "Invalid email address." } })} />
+                {errors.captainEmail && <p className="text-xs text-destructive mt-1">{errors.captainEmail.message}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="captainPhone">Captain’s Phone</Label>
+                <Input type="tel" placeholder="10-digit number" {...register("captainPhone", { required: "Phone number is required.", minLength: { value: 7, message: "Must be a valid phone number." } })} />
+                {errors.captainPhone && <p className="text-xs text-destructive mt-1">{errors.captainPhone.message}</p>}
+              </div>
+            </section>
+            
+            <section>
+              <h2 className="font-display text-xl mb-3">Players 2–5</h2>
+              <div className="space-y-4">
+                {defaultPlayers.map((_, i) => (
+                  <div key={i}>
+                    <Label>Player {i + 2} Name</Label>
+                    <Input placeholder={`Player ${i + 2} name`} {...register(`players.${i}.name` as const, { required: "Player name is required." })} />
+                    {errors.players?.[i]?.name && <p className="text-xs text-destructive mt-1">{errors.players[i]?.name?.message}</p>}
+                  </div>
+                ))}
+              </div>
+            </section>
+
             <section className="space-y-4 pt-4 border-t">
                <h2 className="font-display text-xl mb-3">Payment</h2>
                <div className="grid md:grid-cols-2 gap-8 items-center bg-muted/40 p-4 rounded-lg">
                   <div className="text-center">
                     <Label className="font-semibold mb-2 block">Scan to Pay</Label>
-                    {/* Make sure 'upi-qr-code.png' is in your /public folder */}
                     <img src="/upi-qr-code.png" alt="UPI QR Code for payment" className="rounded-lg mx-auto border" />
                     <p className="text-sm text-muted-foreground mt-2">Pay the entry fee using any UPI app.</p>
                   </div>
@@ -158,8 +200,8 @@ const Register = () => {
             </section>
 
             <div className="pt-2 flex flex-col sm:flex-row gap-4">
-              <Button size="xl" type="submit" disabled={isSubmitting || isClosed()}>
-                {isSubmitting ? "Submitting..." : <><UploadCloud className="mr-2 h-5 w-5" /> Submit Registration</>}
+              <Button size="xl" type="submit" disabled={isSubmitting || isClosed}> {/* CORRECTED */}
+                {isClosed ? "Registration Closed" : isSubmitting ? "Submitting..." : <><UploadCloud className="mr-2 h-5 w-5" /> Submit Registration</>} {/* CORRECTED */}
               </Button>
               <Button size="xl" variant="outline" asChild>
                 <Link to="/">Back to Home</Link>

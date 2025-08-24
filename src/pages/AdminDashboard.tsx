@@ -1,17 +1,14 @@
 // src/pages/AdminDashboard.tsx
 import { useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { collection, getDocs, orderBy, query, doc, deleteDoc, updateDoc } from 'firebase/firestore';
-import { getAuth, signOut } from 'firebase/auth';
+import { supabase } from '@/supabase';
 import { useNavigate } from 'react-router-dom';
 
-import { db } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/components/ui/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
-// CORRECTED: Updated interface to include all fields
 interface Team {
   id: string;
   teamName: string;
@@ -25,47 +22,65 @@ const AdminDashboard = () => {
   const [teams, setTeams] = useState<Team[]>([]);
   const { toast } = useToast();
   const navigate = useNavigate();
-  const auth = getAuth();
 
   const fetchTeams = async () => {
-    const q = query(collection(db, "registrations"), orderBy("registeredAt", "asc"));
-    const querySnapshot = await getDocs(q);
-    const teamsList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Team));
-    setTeams(teamsList);
+    const { data, error } = await supabase
+      .from('registrations')
+      .select('*')
+      .order('created_at', { ascending: true });
+    
+    if (data) setTeams(data);
+    if (error) console.error("Error fetching teams:", error);
   };
 
   useEffect(() => {
+    // Check if user is logged in
+    const checkUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        navigate('/admin/login');
+      }
+    };
+    checkUser();
     fetchTeams();
-  }, []);
-  
-  // CORRECTED: Moved handleDelete and handleLogout inside the component
+  }, [navigate]);
+
   const handleDelete = async (teamId: string, teamName: string) => {
     try {
-      await deleteDoc(doc(db, "registrations", teamId));
+      const { error } = await supabase
+        .from('registrations')
+        .delete()
+        .eq('id', teamId);
+      
+      if (error) throw error;
       toast({ title: "Success", description: `Team "${teamName}" has been deleted.` });
-      fetchTeams(); // Refresh the list after deleting
+      fetchTeams();
     } catch (error) {
       toast({ title: "Error", description: "Could not delete team.", variant: "destructive" });
     }
   };
 
   const handleLogout = async () => {
-    await signOut(auth);
+    await supabase.auth.signOut();
     navigate('/admin/login');
   };
 
-  // Optional but recommended: function to approve/reject payments
   const handlePaymentStatus = async (teamId: string, status: "approved" | "rejected") => {
     try {
-      const teamDocRef = doc(db, "registrations", teamId);
-      await updateDoc(teamDocRef, { paymentStatus: status });
+      const { error } = await supabase
+        .from('registrations')
+        .update({ paymentStatus: status })
+        .eq('id', teamId);
+
+      if (error) throw error;
       toast({ title: "Success", description: `Payment marked as ${status}.` });
-      fetchTeams(); // Refresh the list
+      fetchTeams();
     } catch (error) {
       toast({ title: "Error", description: "Could not update status.", variant: "destructive" });
     }
   };
 
+  // CORRECTED: Restored the JSX inside the return statement
   return (
     <main className="container py-10 md:py-14">
       <Helmet><title>Admin Dashboard | Ascension</title></Helmet>
@@ -113,7 +128,6 @@ const AdminDashboard = () => {
                     <AlertDialogTrigger asChild>
                       <Button variant="destructive" size="sm">Delete</Button>
                     </AlertDialogTrigger>
-                    {/* CORRECTED: The content for the AlertDialog was missing */}
                     <AlertDialogContent>
                       <AlertDialogHeader>
                         <AlertDialogTitle>Are you sure?</AlertDialogTitle>

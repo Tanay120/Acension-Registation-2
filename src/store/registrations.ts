@@ -1,63 +1,64 @@
 // src/store/registrations.ts
 import { create } from 'zustand';
-import { collection, getDocs, orderBy, query } from 'firebase/firestore';
-import { db } from '@/firebase';
+import { supabase } from '@/supabase';
 
-// Define the shape of a team object
 interface Team {
   id: string;
   teamName: string;
 }
 
-// Define the shape of the store's state and actions
 interface RegistrationState {
   teams: Team[];
   capacity: number;
   isLoading: boolean;
+  count: number;
+  isClosed: boolean;
   fetchTeams: () => Promise<void>;
   addTeam: (newTeam: Team) => void;
-  count: () => number;
-  isClosed: () => boolean;
 }
 
-// Create the Zustand store
 export const useRegistrationStore = create<RegistrationState>((set, get) => ({
-  // Initial state
   teams: [],
   capacity: 16,
   isLoading: true,
+  count: 0,
+  isClosed: false,
 
-  // Action to fetch all teams from Firestore
   fetchTeams: async () => {
     set({ isLoading: true });
     try {
-      const q = query(collection(db, "registrations"), orderBy("registeredAt", "asc"));
-      const querySnapshot = await getDocs(q);
-      const teamsList = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        teamName: doc.data().teamName,
-      })) as Team[];
-      set({ teams: teamsList });
+      const { data, error } = await supabase
+        .from('registrations')
+        .select('id, teamName')
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      
+      if (data) {
+        const teamCount = data.length;
+        const capacity = get().capacity;
+        set({
+          teams: data,
+          count: teamCount,
+          isClosed: teamCount >= capacity,
+          isLoading: false
+        });
+      }
     } catch (error) {
       console.error("Error fetching teams:", error);
-    } finally {
-      // Always set loading to false after the fetch attempt is complete
       set({ isLoading: false });
     }
   },
 
-  // Action to add a new team to the local state optimistically
   addTeam: (newTeam: Team) => {
-    set((state) => ({
-      teams: [...state.teams, newTeam],
-      // This is the fix: ensure isLoading is false after adding a team
-      isLoading: false,
-    }));
+    set((state) => {
+      const newCount = state.teams.length + 1;
+      const newIsClosed = newCount >= state.capacity;
+      return {
+        teams: [...state.teams, newTeam],
+        count: newCount,
+        isClosed: newIsClosed,
+      };
+    });
   },
-
-  // Getter to calculate the current number of registered teams
-  count: () => get().teams.length,
-
-  // Getter to check if the registration capacity has been reached
-  isClosed: () => get().teams.length >= get().capacity,
 }));
